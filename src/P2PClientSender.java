@@ -26,7 +26,6 @@ public class P2PClientSender implements Runnable
 	public P2PClientSender() throws SocketException
 	{
 		this.socket = new DatagramSocket();
-		System.out.println(socket.getLocalPort());
 	}
 
 	public void sendHeartbeat()
@@ -34,14 +33,17 @@ public class P2PClientSender implements Runnable
 		AvailabilityPacket heartbeat = new AvailabilityPacket(false, true);
 		byte[] encodedPacket = heartbeat.encode();
 
-		for (String ip : ips)
+		for (String socketAddr : ips)
 		{
+			String ip = socketAddr.split("\\:")[0];
+			int port = Integer.valueOf(socketAddr.split("\\:")[1]);
+
 			try
 			{
 				InetAddress inetAddress = InetAddress.getByName(ip);
 				// As of now, you have to see what port the socket is on.
 				DatagramPacket packet = new DatagramPacket(encodedPacket, encodedPacket.length,
-						inetAddress, 46360);
+						inetAddress, port);
 				socket.send(packet);
 			} catch (IOException e)
 			{

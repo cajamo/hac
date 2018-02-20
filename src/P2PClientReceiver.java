@@ -19,6 +19,7 @@ public class P2PClientReceiver implements Runnable
 {
 	private static int NODE_OFFLINE = 30;
 	private static int TIMEOUT = 2500;
+	private static int PORT_NUM = 9999;
 
 	private Map<String, Instant> onlineIpMap = new HashMap<>();
 	private List<String> offlineIpList = new ArrayList<>();
@@ -27,9 +28,8 @@ public class P2PClientReceiver implements Runnable
 
 	public P2PClientReceiver() throws SocketException
 	{
-		this.socket = new DatagramSocket();
+		this.socket = new DatagramSocket(PORT_NUM);
 		this.socket.setSoTimeout(TIMEOUT);
-		System.out.println(socket.getLocalPort());
 	}
 
 	public void pruneNodes()
