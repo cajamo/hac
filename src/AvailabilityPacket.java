@@ -1,5 +1,3 @@
-import java.net.InetAddress;
-
 /**
  * Team Rusty Buckets
  * High Availability Cluster: Project 1
@@ -8,26 +6,18 @@ import java.net.InetAddress;
 
 public class AvailabilityPacket
 {
-	private boolean isNodeChange = false;
-	private boolean isNodeUp = false;
-	private boolean heartbeat = false;
+	private boolean isNodeChange;
+	private boolean isNodeAlive;
 
-	private InetAddress address;
-	private int port;
-
-	public AvailabilityPacket(InetAddress address, int port)
+	public AvailabilityPacket(boolean isNodeChange, boolean isNodeAlive)
 	{
-		this.address = address;
-		this.port = port;
+		this.isNodeChange = isNodeChange;
+		this.isNodeAlive = isNodeAlive;
 	}
 
-	public InetAddress getAddress()
+	public byte[] encode()
 	{
-		return address;
-	}
-
-	public int getPort()
-	{
-		return port;
+		byte[] bytes = {(byte) (isNodeAlive ? 1 : 0), (byte) (isNodeChange ? 1 : 0)};
+		return bytes;
 	}
 }
