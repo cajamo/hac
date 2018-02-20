@@ -39,7 +39,9 @@ public class P2PClientSender implements Runnable
 			try
 			{
 				InetAddress inetAddress = InetAddress.getByName(ip);
-				DatagramPacket packet = new DatagramPacket(encodedPacket, encodedPacket.length, inetAddress, 45870);
+				// As of now, you have to see what port the socket is on.
+				DatagramPacket packet = new DatagramPacket(encodedPacket, encodedPacket.length,
+						inetAddress, 46360);
 				socket.send(packet);
 			} catch (IOException e)
 			{
