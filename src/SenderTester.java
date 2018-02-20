@@ -4,7 +4,7 @@ public class SenderTester
 {
 	public static void main(String[] args) throws SocketException
 	{
-		P2PClient p2p = new P2PClient();
-		p2p.sendHeartbeat();
+		P2PClientSender p2p = new P2PClientSender();
+		p2p.run();
 	}
 }
