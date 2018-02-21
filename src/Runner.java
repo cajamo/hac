@@ -4,13 +4,8 @@ public class Runner
 {
 	public static void main(String[] args) throws SocketException
 	{
-		P2PClientReceiver p2p = new P2PClientReceiver();
-		Thread thread1 = new Thread(p2p);
-
-		P2PClientSender p2p1 = new P2PClientSender();
-		Thread thread2 = new Thread(p2p1);
-
-		thread1.start();
+		P2PNode p2p = new P2PNode();
+		Thread thread2 = new Thread(p2p);
 		thread2.start();
 	}
 }
