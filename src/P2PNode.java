@@ -27,8 +27,8 @@ public class P2PNode implements Runnable
 	private static int TIMEOUT = 2500;
 	private static int PORT_NUM = 9999;
 
-	private Map<String, Instant> onlineIpMap = new HashMap<>();
-	private List<String> offlineIpList = new ArrayList<>();
+	private Map<InetAddress, Instant> onlineIpMap = new HashMap<>();
+	private List<InetAddress> offlineIpList = new ArrayList<>();
 
 	private String[] ips = readIps();
 	private DatagramSocket socket;
@@ -36,14 +36,13 @@ public class P2PNode implements Runnable
 
 	public P2PNode() throws SocketException
 	{
-		this.socket = new DatagramSocket(PORT_NUM);
-		this.socket.setSoTimeout(TIMEOUT);
+		socket = new DatagramSocket(PORT_NUM);
+		socket.setSoTimeout(TIMEOUT);
 	}
 
-	public void sendHeartbeat()
+	public void sendPacket(AvailabilityPacket proto)
 	{
-		AvailabilityPacket heartbeat = new AvailabilityPacket(false, true);
-		byte[] encodedPacket = heartbeat.encode();
+		byte[] encodedPacket = proto.encode();
 
 		for (String socketAddr : ips)
 		{
@@ -64,9 +63,12 @@ public class P2PNode implements Runnable
 		}
 	}
 
-	public void listenHeartbeat()
+	/**
+	 * Receives packet, and hands off to another method
+	 */
+	public void listenPacket()
 	{
-		byte[] buffer = new byte[2];
+		byte[] buffer = new byte[6];
 		DatagramPacket dP = new DatagramPacket(buffer, buffer.length);
 		try
 		{
@@ -78,15 +80,17 @@ public class P2PNode implements Runnable
 		{
 			e.printStackTrace();
 		}
-		String ipAddr = dP.getAddress().getHostAddress();
+		handlePayload(dP);
+	}
 
-		onlineIpMap.put(ipAddr, Instant.now());
-		offlineIpList.removeIf(T -> T.equals(ipAddr));
+	public void handlePayload(DatagramPacket packet)
+	{
+		onlineIpMap.put(packet.getAddress(), Instant.now());
 	}
 
 	public void pruneNodes()
 	{
-		for (Map.Entry<String, Instant> ip : onlineIpMap.entrySet())
+		for (Map.Entry<InetAddress, Instant> ip : onlineIpMap.entrySet())
 		{
 			Instant ipLastKnown = ip.getValue();
 			if (Instant.now().isAfter(ipLastKnown.plusSeconds(NODE_OFFLINE)))
@@ -100,14 +104,14 @@ public class P2PNode implements Runnable
 	public void outputIps()
 	{
 		System.out.println("----- Online -----");
-		for (String ip : onlineIpMap.keySet())
+		for (InetAddress ip : onlineIpMap.keySet())
 		{
-			System.out.println(ip);
+			System.out.println(ip.getHostAddress());
 		}
 		System.out.println("----- Offline -----");
-		for (String ip : offlineIpList)
+		for (InetAddress ip : offlineIpList)
 		{
-			System.out.println(ip);
+			System.out.println(ip.getHostAddress());
 		}
 	}
 
@@ -142,14 +146,14 @@ public class P2PNode implements Runnable
 		{
 			if (!Duration.between(Instant.now(), nextBeat).isNegative())
 			{
-				listenHeartbeat();
+				listenPacket();
 				pruneNodes();
 				outputIps();
 			} else
 			{
 				int randSec = random.nextInt(30) + 1;
 				nextBeat = Instant.now().plusSeconds(randSec);
-				sendHeartbeat();
+				sendPacket(new AvailabilityPacket(new ArrayList<>(onlineIpMap.keySet()), offlineIpList));
 			}
 		}
 	}
