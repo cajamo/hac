@@ -3,7 +3,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Team Rusty Buckets
@@ -13,8 +15,7 @@ import java.util.List;
 
 public class AvailabilityPacket
 {
-	private List<InetAddress> onlineIp;
-	private List<InetAddress> offlineIp;
+	private Map<InetAddress, PACKET_STATUS> ips;
 	private byte[] payload;
 
 	public enum PACKET_STATUS
@@ -39,18 +40,16 @@ public class AvailabilityPacket
 		this.payload = encodeSingle(addr, status);
 	}
 
-	public AvailabilityPacket(List<InetAddress> onlineIp, List<InetAddress> offlineIp)
+	public AvailabilityPacket(Map<InetAddress, PACKET_STATUS> ips)
 	{
-		this.onlineIp = onlineIp;
-		this.offlineIp = offlineIp;
+		this.ips = ips;
 		this.payload = encodeLists();
 	}
 
 	public AvailabilityPacket(byte[] payload)
 	{
 		this.payload = payload;
-		this.onlineIp = new ArrayList<>();
-		this.offlineIp = new ArrayList<>();
+		this.ips = new HashMap<>();
 	}
 
 	public AvailabilityPacket decode()
@@ -61,17 +60,14 @@ public class AvailabilityPacket
 		while (counter < packetLength)
 		{
 			int ipSize = payload[counter++];
-			boolean online = payload[counter++] == 1;
+			int statusCode = payload[counter++];
 			byte[] ipAddr = Arrays.copyOfRange(payload, counter, counter + ipSize);
+
 			try
 			{
-				if (online)
-				{
-					onlineIp.add(InetAddress.getByAddress(ipAddr));
-				} else
-				{
-					offlineIp.add(InetAddress.getByAddress(ipAddr));
-				}
+				InetAddress address = InetAddress.getByAddress(ipAddr);
+				PACKET_STATUS status = PACKET_STATUS.values()[statusCode];
+				ips.put(address, status);
 			} catch (UnknownHostException e)
 			{
 				e.printStackTrace();
@@ -114,18 +110,11 @@ public class AvailabilityPacket
 		//leave 2 bits for width
 		int counter = 2;
 
-		if (onlineIp != null)
+		if (ips != null)
 		{
-			for (InetAddress address : onlineIp)
+			for (Map.Entry<InetAddress, PACKET_STATUS> entry : ips.entrySet())
 			{
-				counter = copyInetAddrToPayload(bytes, counter, address, PACKET_STATUS.ONLINE);
-			}
-		}
-		if (offlineIp != null)
-		{
-			for (InetAddress address : offlineIp)
-			{
-				counter = copyInetAddrToPayload(bytes, counter, address, PACKET_STATUS.ONLINE);
+				counter = copyInetAddrToPayload(bytes, counter, entry.getKey(), entry.getValue());
 			}
 		}
 
@@ -135,14 +124,9 @@ public class AvailabilityPacket
 		return bytes;
 	}
 
-	public List<InetAddress> getOnlineIp()
+	public Map<InetAddress, PACKET_STATUS> getIps()
 	{
-		return onlineIp;
-	}
-
-	public List<InetAddress> getOfflineIp()
-	{
-		return offlineIp;
+		return ips;
 	}
 
 	public byte[] getPayload()

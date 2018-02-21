@@ -21,10 +21,9 @@ import java.util.Random;
  * Cameron Moberg, Eli Charleville, Evan Gauer
  */
 
-public class P2PNode implements Runnable
+public class P2PNode
 {
 	private static int NODE_OFFLINE = 30;
-	private static int TIMEOUT = 2500;
 	private static int PORT_NUM = 9999;
 
 	private Map<InetAddress, Instant> onlineIpMap = new HashMap<>();
@@ -33,12 +32,6 @@ public class P2PNode implements Runnable
 	private String[] ips = readIps();
 	private DatagramSocket socket;
 	private Random random = new Random();
-
-	public P2PNode() throws SocketException
-	{
-		socket = new DatagramSocket(PORT_NUM);
-		socket.setSoTimeout(TIMEOUT);
-	}
 
 	public void sendPacket(AvailabilityPacket proto)
 	{
@@ -98,15 +91,33 @@ public class P2PNode implements Runnable
 
 		AvailabilityPacket decoded = new AvailabilityPacket(packet.getData()).decode();
 
-		for (InetAddress onlineIp : decoded.getOnlineIp())
+		for (Map.Entry<InetAddress, AvailabilityPacket.PACKET_STATUS> entry : decoded.getIps().entrySet())
 		{
-			onlineIpMap.put(onlineIp, Instant.now());
-			offlineIpList.remove(onlineIp);
-		}
-		for (InetAddress offlineIp : decoded.getOfflineIp())
-		{
-			offlineIpList.add(offlineIp);
-			onlineIpMap.remove(offlineIp);
+			InetAddress address = entry.getKey();
+			AvailabilityPacket.PACKET_STATUS status = entry.getValue();
+
+			switch (status)
+			{
+				case NEW:
+					onlineIpMap.put(address, Instant.now());
+					break;
+				case REVIVE:
+					onlineIpMap.put(address, Instant.now());
+					offlineIpList.remove(address);
+					break;
+				case OFFLINE:
+				case FAIL:
+					offlineIpList.add(address);
+					onlineIpMap.remove(address);
+					break;
+				case ONLINE:
+					onlineIpMap.put(address, Instant.now());
+					if (offlineIpList.contains(address))
+					{
+						offlineIpList.remove(address);
+						sendPacket(new AvailabilityPacket(address, AvailabilityPacket.PACKET_STATUS.REVIVE));
+					}
+			}
 		}
 	}
 
@@ -117,6 +128,7 @@ public class P2PNode implements Runnable
 			Instant ipLastKnown = ip.getValue();
 			if (Instant.now().isAfter(ipLastKnown.plusSeconds(NODE_OFFLINE)))
 			{
+				sendPacket(new AvailabilityPacket(ip.getKey(), AvailabilityPacket.PACKET_STATUS.FAIL));
 				offlineIpList.add(ip.getKey());
 				onlineIpMap.remove(ip.getKey());
 			}
@@ -159,24 +171,46 @@ public class P2PNode implements Runnable
 		return ipList.toArray((new String[0]));
 	}
 
-	@Override
-	public void run()
+	public void begin()
 	{
-		Instant nextBeat = Instant.now();
-
-		while (true)
+		try
 		{
-			if (!Duration.between(Instant.now(), nextBeat).isNegative())
-			{
-				listenPacket();
-				pruneNodes();
-				outputIps();
-			} else
-			{
-				int randSec = random.nextInt(30) + 1;
-				nextBeat = Instant.now().plusSeconds(randSec);
-				sendPacket(new AvailabilityPacket(new ArrayList<>(onlineIpMap.keySet()), offlineIpList));
-			}
+			this.socket = new DatagramSocket(PORT_NUM);
+		} catch (SocketException e)
+		{
+			e.printStackTrace();
 		}
+
+		Thread listener = new Thread(() ->
+		{
+			while (true)
+			{
+
+				listenPacket();
+				outputIps();
+			}
+		});
+
+		Thread sender = new Thread(() ->
+		{
+			Instant nextBeat = Instant.now();
+
+			while (true)
+			{
+				if (Duration.between(Instant.now(), nextBeat).isNegative())
+				{
+					int randSec = random.nextInt(30) + 1;
+					nextBeat = Instant.now().plusSeconds(randSec);
+					sendPacket(new AvailabilityPacket(new ArrayList<>(onlineIpMap.keySet()), offlineIpList));
+				} else
+				{
+					pruneNodes();
+				}
+			}
+
+		});
+
+		listener.start();
+		sender.start();
 	}
 }
