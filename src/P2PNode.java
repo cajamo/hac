@@ -69,7 +69,7 @@ public class P2PNode implements Runnable
 	 */
 	public void listenPacket()
 	{
-		byte[] buffer = new byte[6];
+		byte[] buffer = new byte[1024];
 		DatagramPacket dP = new DatagramPacket(buffer, buffer.length);
 		try
 		{
@@ -86,7 +86,24 @@ public class P2PNode implements Runnable
 
 	public void handlePayload(DatagramPacket packet)
 	{
-		onlineIpMap.put(packet.getAddress(), Instant.now());
+		//Add sender of message as online.
+		if (!onlineIpMap.containsKey(packet.getAddress()))
+		{
+			onlineIpMap.put(packet.getAddress(), Instant.now());
+		}
+
+		AvailabilityPacket decoded = new AvailabilityPacket(packet.getData()).decode();
+
+		for (InetAddress onlineIp : decoded.getOnlineIp())
+		{
+			onlineIpMap.put(onlineIp, Instant.now());
+			offlineIpList.remove(onlineIp);
+		}
+		for (InetAddress offlineIp : decoded.getOfflineIp())
+		{
+			offlineIpList.add(offlineIp);
+			onlineIpMap.remove(offlineIp);
+		}
 	}
 
 	public void pruneNodes()
