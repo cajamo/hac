@@ -1,4 +1,3 @@
-import java.lang.reflect.Array;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -18,10 +17,33 @@ public class AvailabilityPacket
 	private List<InetAddress> offlineIp;
 	private byte[] payload;
 
+	public enum PACKET_STATUS
+	{
+		OFFLINE(0), ONLINE(1), NEW(2), FAIL(3), REVIVE(4);
+
+		private int statusCode;
+
+		PACKET_STATUS(int statusCode)
+		{
+			this.statusCode = statusCode;
+		}
+
+		public int getStatusCode()
+		{
+			return this.statusCode;
+		}
+	}
+
+	public AvailabilityPacket(InetAddress addr, PACKET_STATUS status)
+	{
+		this.payload = encodeSingle(addr, status);
+	}
+
 	public AvailabilityPacket(List<InetAddress> onlineIp, List<InetAddress> offlineIp)
 	{
 		this.onlineIp = onlineIp;
 		this.offlineIp = offlineIp;
+		this.payload = encodeLists();
 	}
 
 	public AvailabilityPacket(byte[] payload)
@@ -59,29 +81,34 @@ public class AvailabilityPacket
 		return this;
 	}
 
-	private int copyToPayload(byte[] bytes, int counter, List<InetAddress> ipList, boolean online)
+	private int copyInetAddrToPayload(byte[] bytes, int counter, InetAddress address, PACKET_STATUS status)
 	{
-		for (InetAddress addr : ipList)
-		{
-			// 4 if Ipv4 (4 bytes), 16 if ipv6 (16 bytes)
-			bytes[counter++] = (byte) ((addr instanceof Inet4Address) ? 4 : 16);
-			// 1 for online
-			if (online)
-			{
-				bytes[counter++] = (byte) 1;
-			} else
-			{
-				bytes[counter++] = (byte) 0;
-			}
-			// Copy IP Address over
-			byte[] ip = addr.getAddress();
-			System.arraycopy(ip, 0, bytes, counter, ip.length);
-			counter += ip.length;
-		}
+		// 4 if Ipv4 (4 bytes), 16 if ipv6 (16 bytes)
+		bytes[counter++] = (byte) ((address instanceof Inet4Address) ? 4 : 16);
+		// Set bit to the packet status code.
+		bytes[counter++] = (byte) status.getStatusCode();
+		// Copy IP Address over
+		byte[] ip = address.getAddress();
+		System.arraycopy(ip, 0, bytes, counter, ip.length);
+		counter += ip.length;
+
 		return counter;
 	}
 
-	public byte[] encode()
+	public byte[] encodeSingle(InetAddress inetAddress, PACKET_STATUS status)
+	{
+		byte[] bytes = new byte[1024];
+		int counter = 2;
+
+		counter = copyInetAddrToPayload(bytes, counter, inetAddress, status);
+
+		//Give length field 2 bytes.
+		bytes[0] = (byte) ((counter >> 8) & 0xFF);
+		bytes[1] = (byte) (counter & 0xFF);
+		return bytes;
+	}
+
+	public byte[] encodeLists()
 	{
 		byte[] bytes = new byte[1024];
 		//leave 2 bits for width
@@ -89,11 +116,17 @@ public class AvailabilityPacket
 
 		if (onlineIp != null)
 		{
-			counter = copyToPayload(bytes, counter, onlineIp, true);
+			for (InetAddress address : onlineIp)
+			{
+				counter = copyInetAddrToPayload(bytes, counter, address, PACKET_STATUS.ONLINE);
+			}
 		}
 		if (offlineIp != null)
 		{
-			counter = copyToPayload(bytes, counter, offlineIp, false);
+			for (InetAddress address : offlineIp)
+			{
+				counter = copyInetAddrToPayload(bytes, counter, address, PACKET_STATUS.ONLINE);
+			}
 		}
 
 		//Give length field 2 bytes.
@@ -110,5 +143,10 @@ public class AvailabilityPacket
 	public List<InetAddress> getOfflineIp()
 	{
 		return offlineIp;
+	}
+
+	public byte[] getPayload()
+	{
+		return this.payload;
 	}
 }

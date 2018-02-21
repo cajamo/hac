@@ -7,7 +7,6 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -43,7 +42,12 @@ public class P2PNode implements Runnable
 
 	public void sendPacket(AvailabilityPacket proto)
 	{
-		byte[] encodedPacket = proto.encode();
+		byte[] encodedPacket = proto.getPayload();
+
+		if (encodedPacket == null)
+		{
+			return;
+		}
 
 		for (String socketAddr : ips)
 		{
@@ -159,20 +163,7 @@ public class P2PNode implements Runnable
 	public void run()
 	{
 		Instant nextBeat = Instant.now();
-		// Uncomment this to see encode/decode in action.
 
-		/*List<InetAddress> test = new ArrayList<>();
-		try
-		{
-			test.add(InetAddress.getByName("localhost"));
-			test.add(InetAddress.getByName("8.8.8.8"));
-		} catch (UnknownHostException e)
-		{
-			e.printStackTrace();
-		}
-		AvailabilityPacket pack = new AvailabilityPacket(new AvailabilityPacket(test, null).encode()).decode();
-		System.out.println(pack.getOnlineIp());
-		*/
 		while (true)
 		{
 			if (!Duration.between(Instant.now(), nextBeat).isNegative())
