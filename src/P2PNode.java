@@ -33,6 +33,11 @@ public class P2PNode
 	private DatagramSocket socket;
 	private Random random = new Random();
 
+	/**
+	 * Sends datagram packet with AvailabilityPacket as payload.
+	 *
+	 * @param proto
+	 */
 	public void sendPacket(AvailabilityPacket proto)
 	{
 		byte[] encodedPacket = proto.getPayload();
@@ -81,6 +86,11 @@ public class P2PNode
 		handlePayload(dP);
 	}
 
+	/**
+	 * Handles the Datagram packet and using our protocol determines status of all ips.
+	 *
+	 * @param packet DataGram packet received with data in Availability Packet form.
+	 */
 	public void handlePayload(DatagramPacket packet)
 	{
 		//Add sender of message as online.
@@ -99,29 +109,45 @@ public class P2PNode
 			switch (status)
 			{
 				case NEW:
+					System.out.println("New Node Available");
 					onlineIpMap.put(address, Instant.now());
 					break;
 				case REVIVE:
+					System.out.println("Node revived " + address.getHostAddress());
 					onlineIpMap.put(address, Instant.now());
 					offlineIpList.remove(address);
 					break;
 				case OFFLINE:
 				case FAIL:
+					System.out.println("Node Offline/Failed " + address.getHostAddress());
 					offlineIpList.add(address);
 					onlineIpMap.remove(address);
 					break;
 				case ONLINE:
-					onlineIpMap.put(address, Instant.now());
-					if (offlineIpList.contains(address))
+					System.out.println("Node online " + address.getHostAddress());
+					if (!onlineIpMap.containsKey(address))
 					{
-						offlineIpList.remove(address);
-						sendPacket(new AvailabilityPacket(address, AvailabilityPacket.PACKET_STATUS.REVIVE));
+						if (offlineIpList.contains(address))
+						{
+							onlineIpMap.put(address, Instant.now());
+							offlineIpList.remove(address);
+							sendPacket(new AvailabilityPacket(address, AvailabilityPacket.PACKET_STATUS.REVIVE));
+						} else
+						{
+							onlineIpMap.put(address, Instant.now());
+							sendPacket(new AvailabilityPacket(address, AvailabilityPacket.PACKET_STATUS.NEW));
+						}
 					}
+					break;
 			}
 		}
 	}
 
-	public void pruneNodes()
+	/**
+	 * Removes nodes that've been offline for more than NODE_OFFLINE time
+	 * from onlineIp list. Also sends packet to all in ip file that a node has gone offline.
+	 */
+	private void pruneNodes()
 	{
 		for (Map.Entry<InetAddress, Instant> ip : onlineIpMap.entrySet())
 		{
@@ -135,7 +161,10 @@ public class P2PNode
 		}
 	}
 
-	public void outputIps()
+	/**
+	 * outputs all ips
+	 */
+	private void outputIps()
 	{
 		System.out.println("----- Online -----");
 		for (InetAddress ip : onlineIpMap.keySet())
@@ -149,6 +178,11 @@ public class P2PNode
 		}
 	}
 
+	/**
+	 * Reads in IPs from file.
+	 *
+	 * @return Array of ips in string format xxx.xxx.xxx.xxx:xxxx
+	 */
 	private String[] readIps()
 	{
 		File file = new File("ips");
@@ -171,6 +205,30 @@ public class P2PNode
 		return ipList.toArray((new String[0]));
 	}
 
+	/**
+	 * Combines onlineIp and offlineIp into a map that Availability packet can handle.
+	 * Could be implemented in the Packet class.
+	 *
+	 * @return Map containing online/offline ip addresses.
+	 */
+	private Map<InetAddress, AvailabilityPacket.PACKET_STATUS> getAllPackets()
+	{
+		HashMap<InetAddress, AvailabilityPacket.PACKET_STATUS> map = new HashMap<>();
+		for (InetAddress address : onlineIpMap.keySet())
+		{
+			map.put(address, AvailabilityPacket.PACKET_STATUS.ONLINE);
+		}
+		for (InetAddress address : offlineIpList)
+		{
+			map.put(address, AvailabilityPacket.PACKET_STATUS.OFFLINE);
+		}
+		return map;
+	}
+
+	/**
+	 * Start up the 2 threads, one that recieves and outputs, and one that
+	 * sends heartbeats out.
+	 */
 	public void begin()
 	{
 		try
@@ -201,7 +259,7 @@ public class P2PNode
 				{
 					int randSec = random.nextInt(30) + 1;
 					nextBeat = Instant.now().plusSeconds(randSec);
-					sendPacket(new AvailabilityPacket(new ArrayList<>(onlineIpMap.keySet()), offlineIpList));
+					sendPacket(new AvailabilityPacket(getAllPackets()));
 				} else
 				{
 					pruneNodes();
