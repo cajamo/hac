@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Team Rusty Buckets
@@ -26,7 +27,7 @@ public class P2PNode
 	private static int NODE_OFFLINE = 30;
 	private static int PORT_NUM = 9999;
 
-	private Map<InetAddress, Instant> onlineIpMap = new HashMap<>();
+	private Map<InetAddress, Instant> onlineIpMap = new ConcurrentHashMap<>();
 	private List<InetAddress> offlineIpList = new ArrayList<>();
 
 	private String[] ips = readIps();
@@ -93,18 +94,17 @@ public class P2PNode
 	 */
 	public void handlePayload(DatagramPacket packet)
 	{
-		//Add sender of message as online.
-		if (!onlineIpMap.containsKey(packet.getAddress()))
-		{
-			onlineIpMap.put(packet.getAddress(), Instant.now());
-		}
-
 		AvailabilityPacket decoded = new AvailabilityPacket(packet.getData()).decode();
 
 		for (Map.Entry<InetAddress, AvailabilityPacket.PACKET_STATUS> entry : decoded.getIps().entrySet())
 		{
 			InetAddress address = entry.getKey();
 			AvailabilityPacket.PACKET_STATUS status = entry.getValue();
+
+			if (address.equals(socket.getInetAddress()))
+			{
+				continue;
+			}
 
 			switch (status)
 			{
@@ -154,6 +154,7 @@ public class P2PNode
 			Instant ipLastKnown = ip.getValue();
 			if (Instant.now().isAfter(ipLastKnown.plusSeconds(NODE_OFFLINE)))
 			{
+				System.out.println("Pruning" + ip.getKey());
 				sendPacket(new AvailabilityPacket(ip.getKey(), AvailabilityPacket.PACKET_STATUS.FAIL));
 				offlineIpList.add(ip.getKey());
 				onlineIpMap.remove(ip.getKey());
@@ -176,6 +177,7 @@ public class P2PNode
 		{
 			System.out.println(ip.getHostAddress());
 		}
+		System.out.println("----------------");
 	}
 
 	/**
@@ -214,6 +216,7 @@ public class P2PNode
 	private Map<InetAddress, AvailabilityPacket.PACKET_STATUS> getAllPackets()
 	{
 		HashMap<InetAddress, AvailabilityPacket.PACKET_STATUS> map = new HashMap<>();
+		map.put(socket.getInetAddress(), AvailabilityPacket.PACKET_STATUS.ONLINE);
 		for (InetAddress address : onlineIpMap.keySet())
 		{
 			map.put(address, AvailabilityPacket.PACKET_STATUS.ONLINE);
