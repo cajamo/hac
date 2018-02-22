@@ -87,6 +87,45 @@ public class P2PNode
 		handlePayload(dP);
 	}
 
+	public void handleStatus(InetAddress address, AvailabilityPacket.PACKET_STATUS status)
+	{
+		switch (status)
+		{
+			case NEW:
+				System.out.println("New Node Available");
+				onlineIpMap.put(address, Instant.now());
+				break;
+			case REVIVE:
+				System.out.println("Node revived " + address.getHostAddress());
+				onlineIpMap.put(address, Instant.now());
+				offlineIpList.remove(address);
+				break;
+			case OFFLINE:
+			case FAIL:
+				System.out.println("Node Offline/Failed " + address.getHostAddress());
+				offlineIpList.add(address);
+				onlineIpMap.remove(address);
+				break;
+			case ONLINE:
+				if (!onlineIpMap.containsKey(address))
+				{
+					if (offlineIpList.contains(address))
+					{
+						System.out.println("New Node Available - Alerting (Revived)");
+						onlineIpMap.put(address, Instant.now());
+						offlineIpList.remove(address);
+						sendPacket(new AvailabilityPacket(address, AvailabilityPacket.PACKET_STATUS.REVIVE));
+					} else
+					{
+						System.out.println("New Node Available - Alerting (New)");
+						onlineIpMap.put(address, Instant.now());
+						sendPacket(new AvailabilityPacket(address, AvailabilityPacket.PACKET_STATUS.NEW));
+					}
+				}
+				break;
+		}
+	}
+
 	/**
 	 * Handles the Datagram packet and using our protocol determines status of all ips.
 	 *
@@ -94,6 +133,9 @@ public class P2PNode
 	 */
 	public void handlePayload(DatagramPacket packet)
 	{
+		//Handle sender of packet
+		handleStatus(packet.getAddress(), AvailabilityPacket.PACKET_STATUS.ONLINE);
+
 		AvailabilityPacket decoded = new AvailabilityPacket(packet.getData()).decode();
 
 		for (Map.Entry<InetAddress, AvailabilityPacket.PACKET_STATUS> entry : decoded.getIps().entrySet())
@@ -105,41 +147,7 @@ public class P2PNode
 			{
 				continue;
 			}
-
-			switch (status)
-			{
-				case NEW:
-					System.out.println("New Node Available");
-					onlineIpMap.put(address, Instant.now());
-					break;
-				case REVIVE:
-					System.out.println("Node revived " + address.getHostAddress());
-					onlineIpMap.put(address, Instant.now());
-					offlineIpList.remove(address);
-					break;
-				case OFFLINE:
-				case FAIL:
-					System.out.println("Node Offline/Failed " + address.getHostAddress());
-					offlineIpList.add(address);
-					onlineIpMap.remove(address);
-					break;
-				case ONLINE:
-					System.out.println("Node online " + address.getHostAddress());
-					if (!onlineIpMap.containsKey(address))
-					{
-						if (offlineIpList.contains(address))
-						{
-							onlineIpMap.put(address, Instant.now());
-							offlineIpList.remove(address);
-							sendPacket(new AvailabilityPacket(address, AvailabilityPacket.PACKET_STATUS.REVIVE));
-						} else
-						{
-							onlineIpMap.put(address, Instant.now());
-							sendPacket(new AvailabilityPacket(address, AvailabilityPacket.PACKET_STATUS.NEW));
-						}
-					}
-					break;
-			}
+			handleStatus(address, status);
 		}
 	}
 
@@ -154,7 +162,7 @@ public class P2PNode
 			Instant ipLastKnown = ip.getValue();
 			if (Instant.now().isAfter(ipLastKnown.plusSeconds(NODE_OFFLINE)))
 			{
-				System.out.println("Pruning" + ip.getKey());
+				System.out.println("Node Assumed Offline - Alerting (Failure): " + ip.getKey().getHostAddress());
 				sendPacket(new AvailabilityPacket(ip.getKey(), AvailabilityPacket.PACKET_STATUS.FAIL));
 				offlineIpList.add(ip.getKey());
 				onlineIpMap.remove(ip.getKey());
@@ -216,7 +224,6 @@ public class P2PNode
 	private Map<InetAddress, AvailabilityPacket.PACKET_STATUS> getAllPackets()
 	{
 		HashMap<InetAddress, AvailabilityPacket.PACKET_STATUS> map = new HashMap<>();
-		map.put(socket.getInetAddress(), AvailabilityPacket.PACKET_STATUS.ONLINE);
 		for (InetAddress address : onlineIpMap.keySet())
 		{
 			map.put(address, AvailabilityPacket.PACKET_STATUS.ONLINE);
