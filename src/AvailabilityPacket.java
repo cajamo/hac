@@ -1,4 +1,5 @@
 import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
@@ -13,32 +14,15 @@ import java.util.Map;
 
 public class AvailabilityPacket
 {
-	private Map<InetAddress, PACKET_STATUS> ips;
+	private Map<InetAddress, PacketStatus> ips;
 	private byte[] payload;
 
-	public enum PACKET_STATUS
-	{
-		OFFLINE(0), ONLINE(1), NEW(2), FAIL(3), REVIVE(4);
-
-		private int statusCode;
-
-		PACKET_STATUS(int statusCode)
-		{
-			this.statusCode = statusCode;
-		}
-
-		public int getStatusCode()
-		{
-			return this.statusCode;
-		}
-	}
-
-	public AvailabilityPacket(InetAddress addr, PACKET_STATUS status)
+	public AvailabilityPacket(InetAddress addr, PacketStatus status)
 	{
 		this.payload = encodeSingle(addr, status);
 	}
 
-	public AvailabilityPacket(Map<InetAddress, PACKET_STATUS> ips)
+	public AvailabilityPacket(Map<InetAddress, PacketStatus> ips)
 	{
 		this.ips = ips;
 		this.payload = encodeLists();
@@ -64,7 +48,7 @@ public class AvailabilityPacket
 			try
 			{
 				InetAddress address = InetAddress.getByAddress(ipAddr);
-				PACKET_STATUS status = PACKET_STATUS.values()[statusCode];
+				PacketStatus status = PacketStatus.values()[statusCode];
 				ips.put(address, status);
 			} catch (UnknownHostException e)
 			{
@@ -75,10 +59,10 @@ public class AvailabilityPacket
 		return this;
 	}
 
-	private int copyInetAddrToPayload(byte[] bytes, int counter, InetAddress address, PACKET_STATUS status)
+	private int copyInetAddrToPayload(byte[] bytes, int counter, InetAddress address, PacketStatus status)
 	{
 		// 4 if Ipv4 (4 bytes), 16 if ipv6 (16 bytes)
-		bytes[counter++] = (byte) ((address instanceof Inet4Address) ? 4 : 16);
+		bytes[counter++] = (byte) ((address instanceof Inet6Address) ? 16 : 4);
 		// Set bit to the packet status code.
 		bytes[counter++] = (byte) status.getStatusCode();
 		// Copy IP Address over
@@ -89,7 +73,7 @@ public class AvailabilityPacket
 		return counter;
 	}
 
-	public byte[] encodeSingle(InetAddress inetAddress, PACKET_STATUS status)
+	public byte[] encodeSingle(InetAddress inetAddress, PacketStatus status)
 	{
 		byte[] bytes = new byte[1024];
 		int counter = 2;
@@ -110,7 +94,7 @@ public class AvailabilityPacket
 
 		if (ips != null)
 		{
-			for (Map.Entry<InetAddress, PACKET_STATUS> entry : ips.entrySet())
+			for (Map.Entry<InetAddress, PacketStatus> entry : ips.entrySet())
 			{
 				counter = copyInetAddrToPayload(bytes, counter, entry.getKey(), entry.getValue());
 			}
@@ -122,7 +106,7 @@ public class AvailabilityPacket
 		return bytes;
 	}
 
-	public Map<InetAddress, PACKET_STATUS> getIps()
+	public Map<InetAddress, PacketStatus> getIps()
 	{
 		return ips;
 	}

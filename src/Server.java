@@ -90,16 +90,16 @@ public class Server
 	 *
 	 * @return Map containing online/offline ip addresses.
 	 */
-	private Map<InetAddress, AvailabilityPacket.PACKET_STATUS> combineIpsIntoMap()
+	private Map<InetAddress, PacketStatus> combineIpsIntoMap()
 	{
-		HashMap<InetAddress, AvailabilityPacket.PACKET_STATUS> map = new HashMap<>();
+		HashMap<InetAddress, PacketStatus> map = new HashMap<>();
 		for (InetAddress address : onlineIpMap.keySet())
 		{
-			map.put(address, AvailabilityPacket.PACKET_STATUS.ONLINE);
+			map.put(address, PacketStatus.ONLINE);
 		}
 		for (InetAddress address : offlineIpList)
 		{
-			map.put(address, AvailabilityPacket.PACKET_STATUS.OFFLINE);
+			map.put(address, PacketStatus.OFFLINE);
 		}
 		return map;
 	}
@@ -116,7 +116,7 @@ public class Server
 			if (Instant.now().isAfter(ipLastKnown.plusSeconds(NODE_TIMEOUT)))
 			{
 				System.out.println("Node Assumed Offline - Alerting (Failure): " + ip.getKey().getHostAddress());
-				sendPacket(new AvailabilityPacket(ip.getKey(), AvailabilityPacket.PACKET_STATUS.FAIL));
+				sendPacket(new AvailabilityPacket(ip.getKey(), PacketStatus.FAIL));
 				offlineIpList.add(ip.getKey());
 				onlineIpMap.remove(ip.getKey());
 			}
@@ -169,7 +169,7 @@ public class Server
 	}
 
 	/**
-	 * Start up the 2 threads, one that recieves and outputs, and one that
+	 * Start up the 2 threads, one that receives and outputs, and one that
 	 * sends heartbeats out.
 	 */
 	public void begin()
@@ -182,7 +182,7 @@ public class Server
 			e.printStackTrace();
 		}
 
-		Thread listener = new Thread(() ->
+		new Thread(() ->
 		{
 			while (true)
 			{
@@ -190,9 +190,9 @@ public class Server
 				listenPacket();
 				outputIps();
 			}
-		});
+		}).start();
 
-		Thread sender = new Thread(() ->
+		new Thread(() ->
 		{
 			Instant nextBeat = Instant.now();
 
@@ -209,9 +209,6 @@ public class Server
 				}
 			}
 
-		});
-
-		listener.start();
-		sender.start();
+		}).start();
 	}
 }

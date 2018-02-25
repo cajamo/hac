@@ -5,11 +5,13 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -24,6 +26,7 @@ public class Client
 
 	private List<InetAddress> onlineIpList = new ArrayList<>();
 	private List<InetAddress> offlineIpList = new ArrayList<>();
+	private List<InetAddress> localIpList;
 
 	/**
 	 * Receives packet, and hands off to another method
@@ -45,24 +48,33 @@ public class Client
 		handlePayload(dP);
 	}
 
-	public void handleStatus(InetAddress address, AvailabilityPacket.PACKET_STATUS status)
+	public void handleStatus(InetAddress address, PacketStatus status)
 	{
 		switch (status)
 		{
 			case NEW:
-				System.out.println("New Node Available");
-				onlineIpList.add(address);
+				if (!onlineIpList.contains(address))
+				{
+					System.out.println("New Node Available");
+					onlineIpList.add(address);
+				}
 				break;
 			case REVIVE:
-				System.out.println("Node revived " + address.getHostAddress());
-				onlineIpList.add(address);
-				offlineIpList.remove(address);
+				if (!onlineIpList.contains(address))
+				{
+					System.out.println("Node revived " + address.getHostAddress());
+					onlineIpList.add(address);
+					offlineIpList.remove(address);
+				}
 				break;
 			case OFFLINE:
 			case FAIL:
-				System.out.println("Node Offline/Failed " + address.getHostAddress());
-				offlineIpList.add(address);
-				onlineIpList.add(address);
+				if (!offlineIpList.contains(address))
+				{
+					System.out.println("Node Offline/Failed " + address.getHostAddress());
+					offlineIpList.add(address);
+					onlineIpList.remove(address);
+				}
 				break;
 			case ONLINE:
 				if (!onlineIpList.contains(address))
@@ -90,20 +102,19 @@ public class Client
 	public void handlePayload(DatagramPacket packet)
 	{
 		//Handle sender of packet
-		handleStatus(packet.getAddress(), AvailabilityPacket.PACKET_STATUS.ONLINE);
+		handleStatus(packet.getAddress(), PacketStatus.ONLINE);
 
 		AvailabilityPacket decoded = new AvailabilityPacket(packet.getData()).decode();
 
-		for (Map.Entry<InetAddress, AvailabilityPacket.PACKET_STATUS> entry : decoded.getIps().entrySet())
+		for (Map.Entry<InetAddress, PacketStatus> entry : decoded.getIps().entrySet())
 		{
 			InetAddress address = entry.getKey();
-			AvailabilityPacket.PACKET_STATUS status = entry.getValue();
+			PacketStatus status = entry.getValue();
 
-			if (address.equals(socket.getInetAddress()))
+			if (!localIpList.contains(address))
 			{
-				continue;
+				handleStatus(address, status);
 			}
-			handleStatus(address, status);
 		}
 	}
 
@@ -121,7 +132,7 @@ public class Client
 		try
 		{
 			InetAddress inetAddress = InetAddress.getByName(ip);
-			DatagramPacket packet = new DatagramPacket(new byte[]{0, 0}, 2, inetAddress, port);
+			DatagramPacket packet = new DatagramPacket(new byte[]{0, 2}, 2, inetAddress, port);
 			socket.send(packet);
 		} catch (IOException e)
 		{
@@ -168,17 +179,42 @@ public class Client
 		return masterIp;
 	}
 
+	/**
+	 * Gets all local interface InetAddresses to not report local machine status.
+	 */
+	private List<InetAddress> populateLocalAddresses() throws SocketException
+	{
+		List<InetAddress> listOfAddr = new ArrayList<>();
+		Enumeration e = NetworkInterface.getNetworkInterfaces();
+
+		while (e.hasMoreElements())
+		{
+			NetworkInterface netInterface = (NetworkInterface) e.nextElement();
+			Enumeration ee = netInterface.getInetAddresses();
+			while (ee.hasMoreElements())
+			{
+				listOfAddr.add((InetAddress) ee.nextElement());
+			}
+		}
+		return listOfAddr;
+	}
+
+	/**
+	 * Begins both a listener and sender thread that listens and sends on the DatagramSocket.
+	 */
 	public void begin()
 	{
 		try
 		{
 			this.socket = new DatagramSocket(PORT_NUM);
+			this.localIpList = populateLocalAddresses();
 		} catch (SocketException e)
 		{
 			e.printStackTrace();
 		}
 
-		Thread listener = new Thread(() ->
+		// Start listener thread
+		new Thread(() ->
 		{
 			while (true)
 			{
@@ -186,9 +222,10 @@ public class Client
 				listenPacket();
 				outputIps();
 			}
-		});
+		}).start();
 
-		Thread sender = new Thread(() ->
+		// Start sender thread
+		new Thread(() ->
 		{
 			Instant nextBeat = Instant.now();
 
@@ -201,11 +238,7 @@ public class Client
 					sendHeartbeat();
 				}
 			}
-
-		});
-		
-		listener.start();
-		sender.start();
+		}).start();
 	}
 
 }

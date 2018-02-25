@@ -5,11 +5,13 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,11 +26,12 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class P2PNode
 {
-	private static int NODE_OFFLINE = 30;
-	private static int PORT_NUM = 9999;
+	private static int NODE_OFFLINE = 31;
+	private static int PORT_NUM = 9998;
 
 	private Map<InetAddress, Instant> onlineIpMap = new ConcurrentHashMap<>();
 	private List<InetAddress> offlineIpList = new ArrayList<>();
+	private List<InetAddress> localIpList;
 
 	private String[] ips = readIps();
 	private DatagramSocket socket;
@@ -87,24 +90,33 @@ public class P2PNode
 		handlePayload(dP);
 	}
 
-	public void handleStatus(InetAddress address, AvailabilityPacket.PACKET_STATUS status)
+	public void handleStatus(InetAddress address, PacketStatus status)
 	{
 		switch (status)
 		{
 			case NEW:
-				System.out.println("New Node Available");
-				onlineIpMap.put(address, Instant.now());
+				if (!onlineIpMap.containsKey(address))
+				{
+					System.out.println("New Node Available");
+					onlineIpMap.put(address, Instant.now());
+				}
 				break;
 			case REVIVE:
-				System.out.println("Node revived " + address.getHostAddress());
-				onlineIpMap.put(address, Instant.now());
-				offlineIpList.remove(address);
+				if (!onlineIpMap.containsKey(address))
+				{
+					System.out.println("Node revived " + address.getHostAddress());
+					onlineIpMap.put(address, Instant.now());
+					offlineIpList.remove(address);
+				}
 				break;
 			case OFFLINE:
 			case FAIL:
-				System.out.println("Node Offline/Failed " + address.getHostAddress());
-				offlineIpList.add(address);
-				onlineIpMap.remove(address);
+				if (!offlineIpList.contains(address))
+				{
+					System.out.println("Node Offline/Failed " + address.getHostAddress());
+					offlineIpList.add(address);
+					onlineIpMap.remove(address);
+				}
 				break;
 			case ONLINE:
 				if (!onlineIpMap.containsKey(address))
@@ -114,12 +126,12 @@ public class P2PNode
 						System.out.println("New Node Available - Alerting (Revived)");
 						onlineIpMap.put(address, Instant.now());
 						offlineIpList.remove(address);
-						sendPacket(new AvailabilityPacket(address, AvailabilityPacket.PACKET_STATUS.REVIVE));
+						sendPacket(new AvailabilityPacket(address, PacketStatus.REVIVE));
 					} else
 					{
 						System.out.println("New Node Available - Alerting (New)");
 						onlineIpMap.put(address, Instant.now());
-						sendPacket(new AvailabilityPacket(address, AvailabilityPacket.PACKET_STATUS.NEW));
+						sendPacket(new AvailabilityPacket(address, PacketStatus.NEW));
 					}
 				}
 				break;
@@ -134,20 +146,19 @@ public class P2PNode
 	public void handlePayload(DatagramPacket packet)
 	{
 		//Handle sender of packet
-		handleStatus(packet.getAddress(), AvailabilityPacket.PACKET_STATUS.ONLINE);
+		handleStatus(packet.getAddress(), PacketStatus.ONLINE);
 
 		AvailabilityPacket decoded = new AvailabilityPacket(packet.getData()).decode();
 
-		for (Map.Entry<InetAddress, AvailabilityPacket.PACKET_STATUS> entry : decoded.getIps().entrySet())
+		for (Map.Entry<InetAddress, PacketStatus> entry : decoded.getIps().entrySet())
 		{
 			InetAddress address = entry.getKey();
-			AvailabilityPacket.PACKET_STATUS status = entry.getValue();
+			PacketStatus status = entry.getValue();
 
-			if (address.equals(socket.getInetAddress()))
+			if (!localIpList.contains(address))
 			{
-				continue;
+				handleStatus(address, status);
 			}
-			handleStatus(address, status);
 		}
 	}
 
@@ -163,7 +174,7 @@ public class P2PNode
 			if (Instant.now().isAfter(ipLastKnown.plusSeconds(NODE_OFFLINE)))
 			{
 				System.out.println("Node Assumed Offline - Alerting (Failure): " + ip.getKey().getHostAddress());
-				sendPacket(new AvailabilityPacket(ip.getKey(), AvailabilityPacket.PACKET_STATUS.FAIL));
+				sendPacket(new AvailabilityPacket(ip.getKey(), PacketStatus.FAIL));
 				offlineIpList.add(ip.getKey());
 				onlineIpMap.remove(ip.getKey());
 			}
@@ -221,22 +232,42 @@ public class P2PNode
 	 *
 	 * @return Map containing online/offline ip addresses.
 	 */
-	private Map<InetAddress, AvailabilityPacket.PACKET_STATUS> getAllPackets()
+	private Map<InetAddress, PacketStatus> getAllPackets()
 	{
-		HashMap<InetAddress, AvailabilityPacket.PACKET_STATUS> map = new HashMap<>();
+		HashMap<InetAddress, PacketStatus> map = new HashMap<>();
 		for (InetAddress address : onlineIpMap.keySet())
 		{
-			map.put(address, AvailabilityPacket.PACKET_STATUS.ONLINE);
+			map.put(address, PacketStatus.ONLINE);
 		}
 		for (InetAddress address : offlineIpList)
 		{
-			map.put(address, AvailabilityPacket.PACKET_STATUS.OFFLINE);
+			map.put(address, PacketStatus.OFFLINE);
 		}
 		return map;
 	}
 
 	/**
-	 * Start up the 2 threads, one that recieves and outputs, and one that
+	 * Gets all local interface InetAddresses to not report local machine status.
+	 */
+	private List<InetAddress> populateLocalAddresses() throws SocketException
+	{
+		List<InetAddress> listOfAddr = new ArrayList<>();
+		Enumeration e = NetworkInterface.getNetworkInterfaces();
+
+		while (e.hasMoreElements())
+		{
+			NetworkInterface netInterface = (NetworkInterface) e.nextElement();
+			Enumeration ee = netInterface.getInetAddresses();
+			while (ee.hasMoreElements())
+			{
+				listOfAddr.add((InetAddress) ee.nextElement());
+			}
+		}
+		return listOfAddr;
+	}
+
+	/**
+	 * Start up the 2 threads, one that receives and outputs, and one that
 	 * sends heartbeats out.
 	 */
 	public void begin()
@@ -244,12 +275,13 @@ public class P2PNode
 		try
 		{
 			this.socket = new DatagramSocket(PORT_NUM);
+			this.localIpList = populateLocalAddresses();
 		} catch (SocketException e)
 		{
 			e.printStackTrace();
 		}
 
-		Thread listener = new Thread(() ->
+		new Thread(() ->
 		{
 			while (true)
 			{
@@ -257,9 +289,9 @@ public class P2PNode
 				listenPacket();
 				outputIps();
 			}
-		});
+		}).start();
 
-		Thread sender = new Thread(() ->
+		new Thread(() ->
 		{
 			Instant nextBeat = Instant.now();
 
@@ -276,9 +308,6 @@ public class P2PNode
 				}
 			}
 
-		});
-
-		listener.start();
-		sender.start();
+		}).start();
 	}
 }
