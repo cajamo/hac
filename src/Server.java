@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Server
 {
-	private static int PORT_NUM = 9997;
+	private static int PORT_NUM = 6969;
 	private static int NODE_TIMEOUT = 31;
 
 	private DatagramSocket socket = null;

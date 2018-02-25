@@ -7,8 +7,8 @@ public class Runner
 //		P2PNode p2p = new P2PNode();
 //		p2p.begin();
 
-		Server server = new Server();
-		server.begin();
+//		Server server = new Server();
+//		server.begin();
 
 		Client client = new Client();
 		client.begin();

@@ -16,7 +16,7 @@ import java.util.Random;
 
 public class Client
 {
-	private static int PORT_NUM = 9998;
+	private static int PORT_NUM = 6969;
 
 	private DatagramSocket socket;
 	private String masterIp = readMasterIp();
@@ -60,9 +60,12 @@ public class Client
 				break;
 			case OFFLINE:
 			case FAIL:
-				System.out.println("Node Offline/Failed " + address.getHostAddress());
-				offlineIpList.add(address);
-				onlineIpList.add(address);
+				if (!offlineIpList.contains(address))
+                {
+                    System.out.println("Node Offline/Failed " + address.getHostAddress());
+                    offlineIpList.add(address);
+                    onlineIpList.remove(address);
+                }
 				break;
 			case ONLINE:
 				if (!onlineIpList.contains(address))

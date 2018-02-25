@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class P2PNode
 {
 	private static int NODE_OFFLINE = 30;
-	private static int PORT_NUM = 9999;
+	private static int PORT_NUM = 7000;
 
 	private Map<InetAddress, Instant> onlineIpMap = new ConcurrentHashMap<>();
 	private List<InetAddress> offlineIpList = new ArrayList<>();
@@ -102,9 +102,12 @@ public class P2PNode
 				break;
 			case OFFLINE:
 			case FAIL:
-				System.out.println("Node Offline/Failed " + address.getHostAddress());
-				offlineIpList.add(address);
-				onlineIpMap.remove(address);
+				if (!offlineIpList.contains(address))
+				{
+					System.out.println("Node Offline/Failed " + address.getHostAddress());
+					offlineIpList.add(address);
+					onlineIpMap.remove(address);
+				}
 				break;
 			case ONLINE:
 				if (!onlineIpMap.containsKey(address))
@@ -143,10 +146,6 @@ public class P2PNode
 			InetAddress address = entry.getKey();
 			AvailabilityPacket.PACKET_STATUS status = entry.getValue();
 
-			if (address.equals(socket.getInetAddress()))
-			{
-				continue;
-			}
 			handleStatus(address, status);
 		}
 	}
