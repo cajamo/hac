@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class P2PNode
 {
 	private static int NODE_OFFLINE = 30;
-	private static int PORT_NUM = 7000;
+	private static int PORT_NUM = 6969;
 
 	private Map<InetAddress, Instant> onlineIpMap = new ConcurrentHashMap<>();
 	private List<InetAddress> offlineIpList = new ArrayList<>();
