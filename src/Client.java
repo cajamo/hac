@@ -18,7 +18,7 @@ import java.util.Random;
 
 public class Client
 {
-	private static int PORT_NUM = 9998;
+	private static int PORT_NUM = 6969;
 
 	private DatagramSocket socket;
 	private String masterIp = readMasterIp();
