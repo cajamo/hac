@@ -14,16 +14,21 @@ import java.util.Map;
 
 public class AvailabilityPacket
 {
+	private static final int HEADER_SIZE = 3;
+
 	private Map<InetAddress, PacketStatus> ips;
 	private byte[] payload;
+	private boolean heartbeat;
 
-	public AvailabilityPacket(InetAddress addr, PacketStatus status)
+	public AvailabilityPacket(InetAddress addr, PacketStatus status, boolean heartbeat)
 	{
+		this.heartbeat = heartbeat;
 		this.payload = encodeSingle(addr, status);
 	}
 
-	public AvailabilityPacket(Map<InetAddress, PacketStatus> ips)
+	public AvailabilityPacket(Map<InetAddress, PacketStatus> ips, boolean heartbeat)
 	{
+		this.heartbeat = heartbeat;
 		this.ips = ips;
 		this.payload = encodeLists();
 	}
@@ -37,7 +42,9 @@ public class AvailabilityPacket
 	public AvailabilityPacket decode()
 	{
 		int packetLength = (payload[0] << 8) + payload[1];
-		int counter = 2;
+		byte flags = payload[2];
+		this.heartbeat = ((flags >> 7) & 1) == 1;
+		int counter = HEADER_SIZE;
 
 		while (counter < packetLength)
 		{
@@ -76,13 +83,15 @@ public class AvailabilityPacket
 	public byte[] encodeSingle(InetAddress inetAddress, PacketStatus status)
 	{
 		byte[] bytes = new byte[1024];
-		int counter = 2;
+		int counter = HEADER_SIZE;
 
 		counter = copyInetAddrToPayload(bytes, counter, inetAddress, status);
 
 		//Give length field 2 bytes.
 		bytes[0] = (byte) ((counter >> 8) & 0xFF);
 		bytes[1] = (byte) (counter & 0xFF);
+		// If heartbeat set 7th bit to 1, else 0
+		bytes[2] = (byte) (heartbeat ? (bytes[2] | 1 << 7) : bytes[2] & ~(1 << 7));
 		return bytes;
 	}
 
@@ -90,7 +99,7 @@ public class AvailabilityPacket
 	{
 		byte[] bytes = new byte[1024];
 		//leave 2 bits for width
-		int counter = 2;
+		int counter = HEADER_SIZE;
 
 		if (ips != null)
 		{
@@ -103,9 +112,17 @@ public class AvailabilityPacket
 		//Give length field 2 bytes.
 		bytes[0] = (byte) ((counter >> 8) & 0xFF);
 		bytes[1] = (byte) (counter & 0xFF);
+		// If heartbeat set 7th bit to 1, else 0
+		bytes[2] = (byte) (heartbeat ? (bytes[2] | 1 << 7) : bytes[2] & ~(1 << 7));
+
 		return bytes;
 	}
 
+	public boolean isHeartbeat()
+	{
+		return this.heartbeat;
+	}
+	
 	public Map<InetAddress, PacketStatus> getIps()
 	{
 		return ips;

@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Server
 {
-	private static int PORT_NUM = 6969;
+	private static int PORT_NUM = 9999;
 	private static int NODE_TIMEOUT = 31;
 
 	private DatagramSocket socket = null;
@@ -116,7 +116,7 @@ public class Server
 			if (Instant.now().isAfter(ipLastKnown.plusSeconds(NODE_TIMEOUT)))
 			{
 				System.out.println("Node Assumed Offline - Alerting (Failure): " + ip.getKey().getHostAddress());
-				sendPacket(new AvailabilityPacket(ip.getKey(), PacketStatus.FAIL));
+				sendPacket(new AvailabilityPacket(ip.getKey(), PacketStatus.FAIL, false));
 				offlineIpList.add(ip.getKey());
 				onlineIpMap.remove(ip.getKey());
 			}
@@ -202,7 +202,7 @@ public class Server
 				{
 					int randSec = random.nextInt(30) + 1;
 					nextBeat = Instant.now().plusSeconds(randSec);
-					sendPacket(new AvailabilityPacket(combineIpsIntoMap()));
+					sendPacket(new AvailabilityPacket(combineIpsIntoMap(), true));
 				} else
 				{
 					pruneNodes();

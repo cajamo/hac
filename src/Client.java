@@ -101,10 +101,13 @@ public class Client
 	 */
 	public void handlePayload(DatagramPacket packet)
 	{
-		//Handle sender of packet
-		handleStatus(packet.getAddress(), PacketStatus.ONLINE);
-
 		AvailabilityPacket decoded = new AvailabilityPacket(packet.getData()).decode();
+
+		if (decoded.isHeartbeat())
+		{
+			//Handle sender of packet
+			handleStatus(packet.getAddress(), PacketStatus.ONLINE);
+		}
 
 		for (Map.Entry<InetAddress, PacketStatus> entry : decoded.getIps().entrySet())
 		{
@@ -132,7 +135,8 @@ public class Client
 		try
 		{
 			InetAddress inetAddress = InetAddress.getByName(ip);
-			DatagramPacket packet = new DatagramPacket(new byte[]{0, 2}, 2, inetAddress, port);
+			byte heartbeat = (byte) (1 << 7);
+			DatagramPacket packet = new DatagramPacket(new byte[]{0, 3, heartbeat}, 2, inetAddress, port);
 			socket.send(packet);
 		} catch (IOException e)
 		{

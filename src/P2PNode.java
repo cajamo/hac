@@ -126,12 +126,12 @@ public class P2PNode
 						System.out.println("New Node Available - Alerting (Revived)");
 						onlineIpMap.put(address, Instant.now());
 						offlineIpList.remove(address);
-						sendPacket(new AvailabilityPacket(address, PacketStatus.REVIVE));
+						sendPacket(new AvailabilityPacket(address, PacketStatus.REVIVE, false));
 					} else
 					{
 						System.out.println("New Node Available - Alerting (New)");
 						onlineIpMap.put(address, Instant.now());
-						sendPacket(new AvailabilityPacket(address, PacketStatus.NEW));
+						sendPacket(new AvailabilityPacket(address, PacketStatus.NEW, false));
 					}
 				}
 				break;
@@ -174,7 +174,7 @@ public class P2PNode
 			if (Instant.now().isAfter(ipLastKnown.plusSeconds(NODE_OFFLINE)))
 			{
 				System.out.println("Node Assumed Offline - Alerting (Failure): " + ip.getKey().getHostAddress());
-				sendPacket(new AvailabilityPacket(ip.getKey(), PacketStatus.FAIL));
+				sendPacket(new AvailabilityPacket(ip.getKey(), PacketStatus.FAIL, false));
 				offlineIpList.add(ip.getKey());
 				onlineIpMap.remove(ip.getKey());
 			}
@@ -301,7 +301,7 @@ public class P2PNode
 				{
 					int randSec = random.nextInt(30) + 1;
 					nextBeat = Instant.now().plusSeconds(randSec);
-					sendPacket(new AvailabilityPacket(getAllPackets()));
+					sendPacket(new AvailabilityPacket(getAllPackets(), true));
 				} else
 				{
 					pruneNodes();
