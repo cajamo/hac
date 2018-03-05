@@ -54,7 +54,7 @@ public class Server
 	/**
 	 * Sends datagram packet with AvailabilityPacket as payload.
 	 *
-	 * @param proto
+	 * @param proto Packet wanting to send.
 	 */
 	public void sendPacket(AvailabilityPacket proto)
 	{
@@ -186,7 +186,6 @@ public class Server
 		{
 			while (true)
 			{
-
 				listenPacket();
 				outputIps();
 			}

@@ -164,7 +164,8 @@ public class P2PNode
 
 	/**
 	 * Removes nodes that've been offline for more than NODE_OFFLINE time
-	 * from onlineIp list. Also sends packet to all in ip file that a node has gone offline.
+	 * from onlineIp list. Also sends packet to all in ip file that a node
+	 * has gone offline.
 	 */
 	private void pruneNodes()
 	{
@@ -227,8 +228,8 @@ public class P2PNode
 	}
 
 	/**
-	 * Combines onlineIp and offlineIp into a map that Availability packet can handle.
-	 * Could be implemented in the Packet class.
+	 * Combines onlineIp and offlineIp into a map that Availability packet can
+	 * handle. Could be implemented in the Packet class.
 	 *
 	 * @return Map containing online/offline ip addresses.
 	 */
@@ -285,7 +286,6 @@ public class P2PNode
 		{
 			while (true)
 			{
-
 				listenPacket();
 				outputIps();
 			}
