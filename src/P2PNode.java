@@ -26,8 +26,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class P2PNode
 {
-	private static int NODE_OFFLINE = 31;
-	private static int PORT_NUM = 9998;
+	private static int NODE_OFFLINE = 35;
+	private static int PORT_NUM = 9999;
 
 	private Map<InetAddress, Instant> onlineIpMap = new ConcurrentHashMap<>();
 	private List<InetAddress> offlineIpList = new ArrayList<>();
@@ -99,6 +99,7 @@ public class P2PNode
 				{
 					System.out.println("New Node Available");
 					onlineIpMap.put(address, Instant.now());
+					offlineIpList.remove(address);
 				}
 				break;
 			case REVIVE:
@@ -131,6 +132,7 @@ public class P2PNode
 					{
 						System.out.println("New Node Available - Alerting (New)");
 						onlineIpMap.put(address, Instant.now());
+						offlineIpList.remove(address);
 						sendPacket(new AvailabilityPacket(address, PacketStatus.NEW, false));
 					}
 				}

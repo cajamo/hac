@@ -57,6 +57,7 @@ public class Client
 				{
 					System.out.println("New Node Available");
 					onlineIpList.add(address);
+					offlineIpList.remove(address);
 				}
 				break;
 			case REVIVE:
@@ -88,6 +89,7 @@ public class Client
 					{
 						System.out.println("New Node Available - Alerting (New)");
 						onlineIpList.add(address);
+						offlineIpList.remove(address);
 					}
 				}
 				break;
