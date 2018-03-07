@@ -101,10 +101,13 @@ public class Client
 	 */
 	public void handlePayload(DatagramPacket packet)
 	{
-		//Handle sender of packet
-		handleStatus(packet.getAddress(), PacketStatus.ONLINE);
-
 		AvailabilityPacket decoded = new AvailabilityPacket(packet.getData()).decode();
+
+		if (decoded.isHeartbeat())
+		{
+			//Handle sender of packet
+			handleStatus(packet.getAddress(), PacketStatus.ONLINE);
+		}
 
 		for (Map.Entry<InetAddress, PacketStatus> entry : decoded.getIps().entrySet())
 		{
@@ -132,7 +135,10 @@ public class Client
 		try
 		{
 			InetAddress inetAddress = InetAddress.getByName(ip);
-			DatagramPacket packet = new DatagramPacket(new byte[]{0, 2}, 2, inetAddress, port);
+			// Set flags for heartbeat.
+			byte heartbeat = (byte) (1 << 7);
+			DatagramPacket packet = new DatagramPacket(new byte[]{0, 3, heartbeat},
+					2, inetAddress, port);
 			socket.send(packet);
 		} catch (IOException e)
 		{
@@ -180,7 +186,8 @@ public class Client
 	}
 
 	/**
-	 * Gets all local interface InetAddresses to not report local machine status.
+	 * Gets all local interface InetAddresses, to be used to
+	 * determine not to report local machine to ourselves.
 	 */
 	private List<InetAddress> populateLocalAddresses() throws SocketException
 	{
@@ -200,7 +207,8 @@ public class Client
 	}
 
 	/**
-	 * Begins both a listener and sender thread that listens and sends on the DatagramSocket.
+	 * Begins both a listener and sender thread that
+	 * listens and sends on the DatagramSocket.
 	 */
 	public void begin()
 	{
@@ -218,7 +226,6 @@ public class Client
 		{
 			while (true)
 			{
-
 				listenPacket();
 				outputIps();
 			}
@@ -240,5 +247,4 @@ public class Client
 			}
 		}).start();
 	}
-
 }

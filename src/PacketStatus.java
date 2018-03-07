@@ -13,5 +13,4 @@ public enum PacketStatus
 	{
 		return this.statusCode;
 	}
-
 }
